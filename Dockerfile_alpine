@@ -1,0 +1,63 @@
+#FROM docker:17.12.0-ce as static-docker-source
+FROM python:3.6-slim-stretch
+
+FROM debian:buster
+ARG CLOUD_SDK_VERSION=274.0.0
+ENV CLOUD_SDK_VERSION=$CLOUD_SDK_VERSION
+
+ARG INSTALL_COMPONENTS
+ENV PATH "$PATH:/opt/google-cloud-sdk/bin/"
+COPY --from=static-docker-source /usr/local/bin/docker /usr/local/bin/docker
+RUN apt-get update -qqy && apt-get install -qqy \
+        curl \
+        gcc \
+        python-dev \
+        python-pip \
+        apt-transport-https \
+        lsb-release \
+        openssh-client \
+        git \
+        gnupg && \
+    pip install -U crcmod && \
+    export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
+    echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    apt-get update && apt-get install -y google-cloud-sdk=${CLOUD_SDK_VERSION}-0 $INSTALL_COMPONENTS && \
+    gcloud config set core/disable_usage_reporting true && \
+    gcloud config set component_manager/disable_update_check true && \
+    gcloud config set metrics/environment github_docker_image && \
+    gcloud --version
+
+VOLUME ["/root/.config"]
+
+
+
+# install stuff
+RUN apt update && apt install -y python3-dev gcc
+RUN apt-get install -y libgtk2.0-dev
+RUN apt-get install -y git
+
+
+# add directories and install
+ADD templates templates
+ADD model model
+ADD requirements.txt .
+RUN pip install -r requirements.txt
+ADD coco.txt .
+RUN pip install -r coco.txt
+
+# install retinanet
+ADD aerial_pedestrian_detection-master aerial_pedestrian_detection-master
+RUN cd aerial_pedestrian_detection-master && python setup.py build_ext --inplace && pip install .
+
+# run source scripts
+RUN pwd
+ADD *.py /
+RUN gcloud init
+#RUN python app.py prepare
+
+
+# EXPOSE 5000
+# Start the server
+#CMD ["python", "app.py", "serve"]
+CMD python app.py

@@ -1,0 +1,14 @@
+GCP_PROJECT=fresh-runway-246001
+APP_NAME=neelsmlapp
+REGION="us-central1"
+MEMORY=2G
+
+
+gcloud builds submit --tag gcr.io/$GCP_PROJECT/$APP_NAME --timeout=82800 && gcloud beta run deploy $APP_NAME --image gcr.io/$GCP_PROJECT/$APP_NAME --region $REGION --memory $MEMORY --allow-unauthenticated
+
+
+
+heroku container:login
+heroku container:push web --app $APP_NAME && heroku container:release web --app $APP_NAME && heroku logs --tail --app $APP_NAME
+
+
